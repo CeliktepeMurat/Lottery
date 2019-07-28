@@ -1,10 +1,13 @@
+// We are importing 3 libraries
 const assert = require('assert');
+
+// Ganache is a local ethereum network run on our machine
 const ganache = require('ganache-cli');
 const Web3 = require('web3');
 
 const web3 = new Web3(ganache.provider());
 
-const { interface , bytecode } = require('../compile');
+const { interface, bytecode } = require('../compile');
 
 let lottery;
 let accounts;
@@ -13,18 +16,19 @@ beforeEach(async () => {
     accounts = await web3.eth.getAccounts();
 
     lottery = await new web3.eth.Contract(JSON.parse(interface))
-    .deploy({ data: bytecode })
+    .deploy({ data: bytecode})
     .send({ from: accounts[0], gas: '1000000'});
 });
 
-describe('Lottery', () => {
+describe('Lottery Contract', () => {
+
     it('deploys a contract', () => {
         assert.ok(lottery.options.address);
     });
 
     it('allows one account to enter', async () => {
         await lottery.methods.enter().send({
-            from: accounts[0],
+            from: accounts[1],
             value: web3.utils.toWei('0.02', 'ether')
         });
 
@@ -32,9 +36,8 @@ describe('Lottery', () => {
             from: accounts[0]
         });
 
-        assert.equal(accounts[0], players[0]);
+        assert.equal(accounts[1], players[0]);
         assert.equal(1, players.length);
-
     });
 
     it('allows multiple account to enter', async () => {
@@ -42,12 +45,10 @@ describe('Lottery', () => {
             from: accounts[0],
             value: web3.utils.toWei('0.02', 'ether')
         });
-
         await lottery.methods.enter().send({
             from: accounts[1],
             value: web3.utils.toWei('0.02', 'ether')
         });
-
         await lottery.methods.enter().send({
             from: accounts[2],
             value: web3.utils.toWei('0.02', 'ether')
@@ -60,6 +61,7 @@ describe('Lottery', () => {
         assert.equal(accounts[0], players[0]);
         assert.equal(accounts[1], players[1]);
         assert.equal(accounts[2], players[2]);
+
         assert.equal(3, players.length);
     });
 
@@ -69,38 +71,43 @@ describe('Lottery', () => {
                 from: accounts[0],
                 value: 0
             });
-            // Eğer yukarda error atmazsa bir alt satıra inicek ve test fail olucak.
-            // Eğer error atarsa demekki program düzgün çalışıyor ve test success olur.
-            assert(false)
+            assert(false);
         } catch (err) {
-            assert(err);
+            assert(err)
         }
     });
 
-    it('only manager can call pickWinner', async () => {
+    it('only manager call pickWinner', async () => {
         try {
             await lottery.methods.pickWinner().send({
                 from: accounts[1]
             });
-            assert(false)
         } catch (err) {
             assert(err);
         }
     });
 
-    it('sends money to winner', async () => {
+    it('receives an amount of money', async() => {
         await lottery.methods.enter().send({
-            from: accounts[0],
+            from: accounts[1],
             value: web3.utils.toWei('2', 'ether')
         });
-        const initialBalance = await web3.eth.getBalance(accounts[0]);
-        await lottery.methods.pickWinner().send({ from: accounts[0] });
-        const finalBalance = await web3.eth.getBalance(accounts[0]);
-        const difference = finalBalance - initialBalance;        
-        assert(difference > web3.utils.toWei('1.8', 'ether'));
-    });
-    it('resets the playerList', async () => {
-        const players = await lottery.methods.getPlayers().call();
-        assert(players == '');
+
+        // const initialBalance = await web3.eth.getBalance(accounts[1]);
+
+        const transaction = await lottery.methods.pickWinner().send({ from: accounts[0] });
+        const winner = await lottery.methods.getWinner().call();
+
+        assert.ok(transaction['transactionHash']);
+        assert.equal(winner, accounts[1]);
+
+        console.log(winner);
+        console.log(accounts[1]);
+              
+
+        // const finalBalance = await web3.eth.getBalance(accounts[1]);
+        // const difference = finalBalance - initialBalance;
+        // assert(difference == web3.utils.toWei('2', 'ether'));
+        // console.log('Difference is : ' + difference);
     });
 });
